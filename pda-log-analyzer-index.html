@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDA 智能日志分析器</title>
+  <style>
+    :root {
+      --bg: #f3f6fb;
+      --card: #fff;
+      --text: #172033;
+      --muted: #667085;
+      --line: #e3e8f0;
+      --blue: #2563eb;
+      --blue-soft: #eaf1ff;
+      --green: #15803d;
+      --green-soft: #eaf8ef;
+      --amber: #b45309;
+      --amber-soft: #fff5df;
+      --red: #c62828;
+      --red-soft: #fff0f0;
+      --purple: #6d28d9;
+      --purple-soft: #f3edff;
+      --shadow: 0 14px 36px rgba(20, 39, 75, .08);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background: radial-gradient(circle at 8% 0%, #e4edff 0, transparent 28%), var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .app { max-width: 1540px; margin: 0 auto; padding: 24px; }
+    .panel {
+      border: 1px solid rgba(227, 232, 240, .95);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, .94);
+      box-shadow: var(--shadow);
+    }
+    .hero { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .intro, .loader { padding: 24px; }
+    h1 { margin: 0 0 8px; font-size: 30px; }
+    h2 { margin: 0; font-size: 18px; }
+    h3 { margin: 0; font-size: 15px; }
+    p { line-height: 1.65; }
+    .muted { color: var(--muted); }
+    .privacy { display: inline-flex; margin-top: 16px; padding: 7px 10px; border-radius: 999px; color: var(--green); background: var(--green-soft); font-size: 12px; font-weight: 800; }
+    textarea {
+      width: 100%; min-height: 150px; resize: vertical; padding: 13px; border: 1px solid var(--line);
+      border-radius: 13px; outline: none; background: #fbfcff; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+    }
+    textarea:focus, input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+    .actions, .inline, .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .actions { margin-top: 10px; }
+    button, .file-label {
+      border: 0; border-radius: 11px; padding: 9px 13px; color: #fff; background: var(--blue); font-weight: 800;
+    }
+    .ghost { color: #26334b; background: #edf1f6; }
+    .file-label input { display: none; }
+    .stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .stat { padding: 14px; }
+    .stat .label { color: var(--muted); font-size: 12px; }
+    .stat .value { margin-top: 5px; font-size: 23px; font-weight: 900; overflow-wrap: anywhere; }
+    .layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: start; }
+    .side { position: sticky; top: 14px; padding: 16px; }
+    .field { margin-top: 12px; }
+    .field label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; }
+    input, select { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; outline: none; background: #fff; }
+    .session-list { display: grid; gap: 7px; margin-top: 10px; max-height: 300px; overflow: auto; }
+    .session-btn { width: 100%; padding: 9px; border: 1px solid var(--line); color: var(--text); background: #fff; text-align: left; font-size: 12px; }
+    .session-btn.active { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
+    .content { min-width: 0; display: grid; gap: 16px; }
+    .section { padding: 18px; }
+    .section-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 12px; }
+    .diagnostics { display: grid; gap: 10px; }
+    .diagnostic {
+      padding: 14px; border: 1px solid var(--line); border-left-width: 5px; border-radius: 14px; background: #fff;
+    }
+    .diagnostic.confirmed { border-left-color: var(--red); background: var(--red-soft); }
+    .diagnostic.suspected { border-left-color: var(--amber); background: var(--amber-soft); }
+    .diagnostic.normal { border-left-color: var(--green); background: var(--green-soft); }
+    .diagnostic-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+    .badge { display: inline-flex; padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 900; white-space: nowrap; }
+    .confirmed .badge { color: var(--red); background: #ffdede; }
+    .suspected .badge { color: var(--amber); background: #ffe7b5; }
+    .normal .badge { color: var(--green); background: #d6f2df; }
+    .diagnostic p { margin: 7px 0 0; font-size: 13px; }
+    .evidence { margin-top: 10px; padding-top: 9px; border-top: 1px dashed rgba(102, 112, 133, .35); color: #475467; font-size: 12px; line-height: 1.65; }
+    .link-btn { padding: 6px 9px; color: var(--blue); background: var(--blue-soft); font-size: 11px; }
+    .timeline { position: relative; padding-left: 21px; }
+    .timeline:before { content: ""; position: absolute; left: 8px; top: 10px; bottom: 10px; width: 2px; background: var(--line); }
+    .event {
+      position: relative; margin-bottom: 10px; padding: 13px; border: 1px solid var(--line); border-radius: 14px; background: #fff;
+    }
+    .event:before { content: ""; position: absolute; left: -18px; top: 19px; width: 11px; height: 11px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 4px var(--blue-soft); }
+    .event.highlight { border-color: var(--red); box-shadow: 0 0 0 3px rgba(198, 40, 40, .12); }
+    .event-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+    .event-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--muted); }
+    .time { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: nowrap; }
+    .chip { padding: 5px 8px; border: 1px solid #e7ebf2; border-radius: 999px; background: #f5f7fb; color: #475467; font-size: 11px; }
+    details { margin-top: 8px; }
+    summary { cursor: pointer; color: var(--blue); font-size: 12px; font-weight: 800; }
+    pre { overflow: auto; padding: 11px; border-radius: 10px; color: #dbeafe; background: #111827; font-size: 11px; }
+    .empty { padding: 36px 15px; text-align: center; color: var(--muted); }
+    .hidden { display: none !important; }
+    @media (max-width: 1100px) { .stats { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 900px) { .hero, .layout { grid-template-columns: 1fr; } .side { position: static; } }
+    @media (max-width: 560px) { .app { padding: 12px; } .stats { grid-template-columns: repeat(2, 1fr); } .event-head, .diagnostic-head { flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="hero">
+      <div class="panel intro">
+        <h1>PDA 智能日志分析器</h1>
+        <p class="muted">把单个 PDA 行为日志文件还原为作业会话、扫描链路与数据落库链路。结论按证据分为已确认异常、疑似异常和正常链路，并明确展示判断依据。</p>
+        <span class="privacy">完全离线 · 日志不会离开本机</span>
+      </div>
+      <div class="panel loader">
+        <textarea id="rawInput" placeholder="粘贴 PDA 日志，或选择一个 TXT 文件"></textarea>
+        <div class="actions">
+          <button id="parseBtn">开始分析</button>
+          <label class="file-label">选择 TXT<input id="fileInput" type="file" accept=".txt,text/plain" /></label>
+          <button id="clearBtn" class="ghost">清空</button>
+        </div>
+        <p class="muted" style="margin-bottom:0;font-size:12px">只分析 `PDA_USER_BEHAVIOR`。普通应用日志会被忽略并单独统计。</p>
+      </div>
+    </section>
+
+    <section id="stats" class="stats"></section>
+
+    <section class="layout">
+      <aside class="panel side">
+        <h2>筛选</h2>
+        <div class="field"><label>搜索事件 / 工位 / recordId</label><input id="searchInput" placeholder="输入关键词" /></div>
+        <div class="field"><label>结论等级</label><select id="severityFilter"><option value="all">全部等级</option><option value="confirmed">已确认异常</option><option value="suspected">疑似异常</option><option value="normal">正常链路</option></select></div>
+        <div class="field"><label>链路类型</label><select id="kindFilter"><option value="all">全部链路</option></select></div>
+        <div class="field"><label>事件类型</label><select id="eventTypeFilter"><option value="all">全部事件</option></select></div>
+        <div class="field"><label>工位</label><select id="stationFilter"><option value="all">全部工位</option></select></div>
+        <div class="field"><label>作业会话</label><div id="sessionList" class="session-list"></div></div>
+      </aside>
+
+      <main class="content">
+        <section class="panel section">
+          <div class="section-head"><h2>智能诊断</h2><span id="diagnosticCount" class="muted"></span></div>
+          <div id="diagnostics" class="diagnostics"></div>
+        </section>
+        <section class="panel section">
+          <div class="section-head"><h2>事件时间线</h2><span id="timelineCount" class="muted"></span></div>
+          <div id="timeline" class="timeline"></div>
+        </section>
+      </main>
+    </section>
+  </div>
+
+  <script>
+    const EVENT_META = {
+      master_file_download_all_click: ['点击下载全部主档', 'master'],
+      master_file_check_success: ['主档检查成功', 'master'],
+      master_file_check_failed: ['主档检查失败', 'error'],
+      master_file_download_status: ['主档下载状态变化', 'master'],
+      inventory_station_input_submit: ['提交工位输入', 'station'],
+      inventory_station_input_invalid: ['工位输入无效', 'error'],
+      inventory_station_check_success: ['工位校验成功', 'station'],
+      inventory_station_check_offline: ['工位离线通过', 'station'],
+      inventory_station_check_canceled: ['工位进入取消', 'error'],
+      inventory_station_enter_rejected: ['工位进入被拒绝', 'error'],
+      inventory_station_enter_success: ['进入工位成功', 'station'],
+      inventory_screen_focus: ['初盘页面获得焦点', 'page'],
+      inventory_work_start: ['开始盘点作业', 'page'],
+      scanner_prepare_start: ['开始准备扫描器', 'scanner'],
+      scanner_prepare_success: ['扫描器准备成功', 'scanner'],
+      scanner_prepare_failed: ['扫描器准备失败', 'error'],
+      scanner_listener_attached: ['业务扫码监听已连接', 'scanner'],
+      scanner_listener_detached: ['业务扫码监听已断开', 'scanner'],
+      scanner_native_broadcast_received: ['原生层收到扫码广播', 'scanner'],
+      inventory_scan_received: ['业务页面收到扫码', 'scan'],
+      inventory_scan_lookup_result: ['主档匹配完成', 'scan'],
+      inventory_scan_lookup_failed: ['商品匹配流程失败', 'error'],
+      inventory_scan_record_direct: ['单品扫描直接记录', 'scan'],
+      inventory_scan_count_input_focus: ['切换到数量输入', 'scan'],
+      inventory_scan_record_blocked: ['扫码记录被阻止', 'error'],
+      inventory_record_without_confirm: ['无需确认直接记录', 'record'],
+      inventory_record_confirm_required: ['需要确认异常记录', 'record'],
+      inventory_record_confirmed: ['用户确认继续记录', 'record'],
+      inventory_record_confirm_canceled: ['用户取消记录', 'record'],
+      inventory_record_enqueued: ['记录进入写库队列', 'record'],
+      inventory_record_insert_success: ['本机写入成功', 'record'],
+      inventory_record_insert_failed: ['本机写入失败', 'error'],
+      inventory_upload_start: ['初盘上传开始', 'upload'],
+      inventory_upload_success: ['初盘上传成功', 'upload'],
+      inventory_upload_failed: ['初盘上传失败', 'error'],
+      inventory_upload_mark_uploaded_success: ['本机标记已上传成功', 'upload'],
+      inventory_upload_mark_uploaded_failed: ['本机标记已上传失败', 'error'],
+      inventory_station_exit_pending_saved: ['保存待补传工位', 'upload'],
+      inventory_database_export_success: ['数据库导出成功', 'upload'],
+      inventory_database_export_failed: ['数据库导出失败', 'error'],
+      inventory_scan_head_locked: ['扫描头锁定', 'lock'],
+      inventory_scan_head_unlocked: ['扫描头解锁', 'lock']
+    };
+    const TYPE_LABEL = { master: '主档', station: '工位', page: '页面', scanner: '扫描器诊断', scan: '扫码', record: '记录', upload: '上传', lock: '扫描头状态', error: '失败', unknown: '未知' };
+    const KIND_LABEL = { page: '页面准备', hardware: '扫描硬件', scan: '扫码记录', lock: '扫描头状态', focus: 'SKU 聚焦', data: '数据完整性', master: '主档质量' };
+    const SEVERITY_LABEL = { confirmed: '已确认异常', suspected: '疑似异常', normal: '正常链路' };
+    const PAGE_READY_EXPECTED = ['inventory_station_enter_success', 'inventory_screen_focus', 'inventory_work_start', 'scanner_prepare_start', 'scanner_prepare_success', 'inventory_scan_head_unlocked', 'scanner_listener_attached'];
+    const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+    let state = { events: [], ignored: 0, parseFailed: 0, sessions: [], diagnostics: [], selectedSession: 'all', highlightIds: [] };
+
+    function parseTime(raw) {
+      const value = raw.trim().replace(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) (\d{3})$/, '$1T$2.$3');
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    function parseLogs(raw) {
+      const blocks = raw.split(/\n-{10,}\s*\n/g).map((block) => block.trim()).filter(Boolean);
+      const events = [];
+      let ignored = 0;
+      let parseFailed = 0;
+      blocks.forEach((block, index) => {
+        const lines = block.split(/\n/);
+        const header = lines[0] || '';
+        if (!header.includes('PDA_USER_BEHAVIOR')) {
+          ignored += 1;
+          return;
+        }
+        const match = header.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s+\d{3}),\s*PDA_USER_BEHAVIOR/);
+        try {
+          const data = JSON.parse(lines.slice(1).join('\n'));
+          if (data.category !== 'user_behavior' || typeof data.event !== 'string') {
+            parseFailed += 1;
+            return;
+          }
+          const meta = EVENT_META[data.event] || [data.event, 'unknown'];
+          events.push({
+            id: `event-${index + 1}`,
+            index: index + 1,
+            timeRaw: match ? match[1] : '',
+            time: match ? parseTime(match[1]) : null,
+            eventName: data.event,
+            payload: data.payload || {},
+            title: meta[0],
+            type: meta[1],
+            raw: data,
+            sessionId: 'outside'
+          });
+        } catch {
+          parseFailed += 1;
+        }
+      });
+      events.sort((a, b) => timeMs(a) - timeMs(b));
+      return { events, ignored, parseFailed };
+    }
+
+    function buildSessions(events) {
+      const sessions = [];
+      let current = null;
+      events.forEach((event) => {
+        if (event.eventName === 'inventory_station_enter_success' || (event.eventName === 'inventory_work_start' && !current)) {
+          current = {
+            id: `session-${sessions.length + 1}`,
+            start: event.time,
+            end: event.time,
+            gongweiId: event.payload.gongweiId || '',
+            gongwei: event.payload.gongwei || '',
+            events: []
+          };
+          sessions.push(current);
+        }
+        if (current) {
+          current.events.push(event);
+          current.end = event.time || current.end;
+          event.sessionId = current.id;
+          if (!current.gongweiId && event.payload.gongweiId) current.gongweiId = event.payload.gongweiId;
+          if (!current.gongwei && event.payload.gongwei) current.gongwei = event.payload.gongwei;
+        }
+        if (current && event.eventName === 'inventory_scan_head_locked' && ['inventory_screen_blur', 'inventory_screen_unmount'].includes(event.payload.reason)) {
+          current = null;
+        }
+      });
+      return sessions;
+    }
+
+    function analyze(events, sessions) {
+      const diagnostics = [];
+      sessions.forEach((session) => {
+        analyzePageReady(session, diagnostics);
+        analyzeHardware(session, diagnostics);
+        analyzeScans(session, diagnostics);
+        analyzeLocks(session, diagnostics);
+        analyzeFocus(session, diagnostics);
+      });
+      analyzeData(events, diagnostics);
+      analyzeMaster(events, diagnostics);
+      return diagnostics.sort((a, b) => severityRank(a.severity) - severityRank(b.severity) || timeMs(a.startEvent) - timeMs(b.startEvent));
+    }
+
+    function analyzePageReady(session, output) {
+      const names = session.events.map((event) => event.eventName);
+      const startEvent = session.events.find((event) => event.eventName === 'inventory_station_enter_success') || session.events[0];
+      const workStart = session.events.find((event) => event.eventName === 'inventory_work_start');
+      const prepareStart = session.events.find((event) => event.eventName === 'scanner_prepare_start');
+      const prepareFailed = session.events.find((event) => event.eventName === 'scanner_prepare_failed');
+      const readyUnlock = session.events.find((event) => event.eventName === 'inventory_scan_head_unlocked' && event.payload.reason === 'inventory_screen_ready');
+      const listener = session.events.find((event) => event.eventName === 'scanner_listener_attached');
+      const directFailure = prepareFailed;
+      const requiredMissing = ['inventory_screen_focus', 'inventory_work_start'].filter((name) => !names.includes(name));
+      const diagnosticMissing = [];
+      if (names.includes('scanner_prepare_start') && !names.includes('scanner_prepare_success')) diagnosticMissing.push('scanner_prepare_success');
+      if (names.includes('scanner_prepare_success') && !listener) diagnosticMissing.push('scanner_listener_attached');
+      if (directFailure) {
+        addDiagnostic(output, 'confirmed', 'page', '扫描器准备失败', directFailure.payload.errorCode ? `扫描器返回错误码：${directFailure.payload.errorCode}。` : '扫描器准备流程明确失败。', [prepareStart, directFailure], PAGE_READY_EXPECTED, ['scanner_prepare_success']);
+      } else if (requiredMissing.length) {
+        addDiagnostic(output, 'suspected', 'page', '页面准备链路不完整', `当前会话没有出现 ${requiredMissing.join('、')}，可能是初始化未完成或日志从中途开始。`, session.events.slice(0, 5), PAGE_READY_EXPECTED, requiredMissing);
+      } else if (diagnosticMissing.length) {
+        addDiagnostic(output, 'suspected', 'page', '扫描器诊断链路不完整', `已开始扫描器准备，但缺少 ${diagnosticMissing.join('、')}。`, [prepareStart, workStart, readyUnlock, listener], PAGE_READY_EXPECTED, diagnosticMissing);
+      } else {
+        const endEvent = listener || readyUnlock || workStart;
+        const duration = elapsed(startEvent, endEvent);
+        const slow = duration > 5000;
+        addDiagnostic(output, slow ? 'suspected' : 'normal', 'page', slow ? '页面准备耗时较长' : '页面准备链路正常', `从进入工位到可开始作业耗时 ${formatDuration(duration)}。`, [startEvent, workStart, prepareStart, readyUnlock, listener], PAGE_READY_EXPECTED, []);
+      }
+    }
+
+    function analyzeHardware(session, output) {
+      const events = session.events;
+      const nativeEvents = events.filter((event) => event.eventName === 'scanner_native_broadcast_received');
+      const businessEvents = events.filter((event) => event.eventName === 'inventory_scan_received');
+      nativeEvents.forEach((nativeEvent) => {
+        const business = findNext(events, nativeEvent, ['inventory_scan_received'], 2000);
+        if (!business) {
+          addDiagnostic(output, 'confirmed', 'hardware', '原生广播未到达业务页面', '原生层已收到扫码广播，但 2 秒内业务页面没有收到扫码事件。', [nativeEvent], ['scanner_native_broadcast_received', 'inventory_scan_received'], ['inventory_scan_received']);
+        } else if (elapsed(nativeEvent, business) > 2000) {
+          addDiagnostic(output, 'suspected', 'hardware', '扫码广播传递较慢', `原生广播到业务页面耗时 ${formatDuration(elapsed(nativeEvent, business))}。`, [nativeEvent, business], ['scanner_native_broadcast_received', 'inventory_scan_received'], []);
+        }
+      });
+      if (nativeEvents.length && nativeEvents.length === businessEvents.length && !output.some((item) => item.kind === 'hardware' && item.sessionId === session.id)) {
+        addDiagnostic(output, 'normal', 'hardware', '扫描硬件链路正常', `${nativeEvents.length} 次原生扫码广播均到达业务页面。`, [nativeEvents[0], businessEvents[0], nativeEvents.at(-1), businessEvents.at(-1)], ['scanner_native_broadcast_received', 'inventory_scan_received'], []);
+      }
+    }
+
+    function analyzeScans(session, output) {
+      const events = session.events;
+      const scans = events.filter((event) => event.eventName === 'inventory_scan_received');
+      scans.forEach((scan, scanIndex) => {
+        const nextScan = scans[scanIndex + 1];
+        const boundaryMs = nextScan ? timeMs(nextScan) : Number.POSITIVE_INFINITY;
+        const chain = events.filter((event) => timeMs(event) >= timeMs(scan) && timeMs(event) < boundaryMs && elapsed(scan, event) <= 30000);
+        const lookup = chain.find((event) => ['inventory_scan_lookup_result', 'inventory_scan_lookup_failed'].includes(event.eventName));
+        const route = chain.find((event) => ['inventory_scan_record_direct', 'inventory_scan_count_input_focus', 'inventory_scan_record_blocked'].includes(event.eventName));
+        const outcome = chain.find((event) => ['inventory_record_without_confirm', 'inventory_record_confirm_required', 'inventory_record_enqueued', 'inventory_scan_record_blocked'].includes(event.eventName));
+        const mode = scan.payload.inventoryMode;
+        const missing = [];
+        if (!lookup) missing.push('inventory_scan_lookup_result/failed');
+        if (!route) missing.push(mode === 'multipleScan' ? 'inventory_scan_count_input_focus' : 'inventory_scan_record_direct/blocked');
+        if (mode === 'singleScan' && !outcome) missing.push('记录结果');
+        if (missing.length) {
+          addDiagnostic(output, 'confirmed', 'scan', '扫码后链路中断', `业务页面收到扫码，但后续缺少 ${missing.join('、')}。`, chain, mode === 'multipleScan' ? ['inventory_scan_received', 'inventory_scan_lookup_result/failed', 'inventory_scan_count_input_focus'] : ['inventory_scan_received', 'inventory_scan_lookup_result/failed', 'inventory_scan_record_direct/blocked', '记录结果'], missing);
+        }
+      });
+
+      events.filter((event) => event.eventName === 'inventory_record_confirm_required').forEach((required) => {
+        const result = findNext(events, required, ['inventory_record_confirmed', 'inventory_record_confirm_canceled'], 10 * 60 * 1000);
+        if (!result) {
+          addDiagnostic(output, 'suspected', 'scan', '确认弹窗没有结束事件', '确认弹窗出现后没有找到确认或取消事件，可能仍在等待用户操作，也可能是日志截断。', [required], ['inventory_record_confirm_required', 'inventory_record_confirmed/canceled'], ['inventory_record_confirmed/canceled']);
+        } else if (elapsed(required, result) > 30000) {
+          addDiagnostic(output, 'suspected', 'scan', '确认弹窗停留过久', `确认弹窗停留 ${formatDuration(elapsed(required, result))}，期间扫描头会被锁定。`, [required, result], ['inventory_record_confirm_required', 'inventory_record_confirmed/canceled'], []);
+        }
+      });
+
+      let streak = [];
+      events.filter((event) => event.eventName === 'inventory_scan_lookup_result').forEach((event) => {
+        if (event.payload.matched === false) {
+          streak.push(event);
+        } else {
+          reportMissStreak(streak, output);
+          streak = [];
+        }
+      });
+      reportMissStreak(streak, output);
+    }
+
+    function reportMissStreak(streak, output) {
+      if (streak.length >= 3) {
+        addDiagnostic(output, 'suspected', 'master', '连续扫码未命中主档', `连续 ${streak.length} 次扫码未命中主档，建议检查主档完整性或条码来源。`, streak, ['inventory_scan_lookup_result matched=true'], []);
+      }
+    }
+
+    function analyzeLocks(session, output) {
+      const locks = new Map();
+      session.events.forEach((event) => {
+        if (event.eventName === 'inventory_scan_head_locked' && !['inventory_screen_blur', 'inventory_screen_unmount'].includes(event.payload.reason)) {
+          locks.set(event.payload.reason, event);
+        }
+        if (event.eventName === 'inventory_scan_head_unlocked') {
+          locks.delete(event.payload.reason);
+        }
+      });
+      locks.forEach((event, reason) => {
+        addDiagnostic(output, 'suspected', 'lock', '扫描头锁定未恢复', `会话结束前没有找到原因 ${reason} 对应的解锁事件。日志截断时也可能出现该现象。`, [event, session.events.at(-1)], ['inventory_scan_head_locked', 'inventory_scan_head_unlocked'], ['inventory_scan_head_unlocked']);
+      });
+    }
+
+    function analyzeFocus(session, output) {
+      const focusEvents = session.events.filter((event) => event.eventName === 'inventory_scan_head_unlocked' && event.payload.reason === 'sku_input_focus');
+      for (let index = 0; index < focusEvents.length; index += 1) {
+        const start = focusEvents[index];
+        const group = focusEvents.filter((event) => elapsed(start, event) >= 0 && elapsed(start, event) <= 15000);
+        if (group.length < 4) continue;
+        const activity = session.events.some((event) => elapsed(start, event) >= 0 && elapsed(start, event) <= 15000 && ['scanner_native_broadcast_received', 'inventory_scan_received', 'inventory_record_without_confirm', 'inventory_record_enqueued'].includes(event.eventName));
+        if (!activity) {
+          addDiagnostic(output, 'suspected', 'focus', '短时间反复触发 SKU 聚焦', `15 秒内出现 ${group.length} 次 SKU 输入框聚焦证据，但没有扫码或记录行为。`, group, ['sku_input_focus', '扫码或记录行为'], ['扫码或记录行为']);
+          break;
+        }
+      }
+    }
+
+    function analyzeData(events, output) {
+      events.filter((event) => event.eventName === 'inventory_record_insert_failed').forEach((event) => {
+        addDiagnostic(output, 'confirmed', 'data', '本机写库失败', event.payload.errorMessage || '日志明确记录本机写入失败。', [event], ['inventory_record_enqueued', 'inventory_record_insert_success'], ['inventory_record_insert_success']);
+      });
+      events.filter((event) => event.eventName === 'inventory_record_enqueued').forEach((enqueued) => {
+        const recordId = enqueued.payload.recordId;
+        const inserted = events.find((event) => event.eventName === 'inventory_record_insert_success' && Array.isArray(event.payload.records) && event.payload.records.some((record) => record.recordId === recordId));
+        if (!inserted) {
+          addDiagnostic(output, 'suspected', 'data', '入队记录没有写库成功证据', `recordId ${recordId} 已进入队列，但日志中没有对应写入成功事件。`, [enqueued], ['inventory_record_enqueued', 'inventory_record_insert_success'], ['inventory_record_insert_success']);
+        } else if (elapsed(enqueued, inserted) > 5000) {
+          addDiagnostic(output, 'suspected', 'data', '本机写库较慢', `recordId ${recordId} 从入队到写入耗时 ${formatDuration(elapsed(enqueued, inserted))}。`, [enqueued, inserted], ['inventory_record_enqueued', 'inventory_record_insert_success'], []);
+        }
+      });
+      events.filter((event) => event.eventName === 'inventory_upload_start').forEach((start) => {
+        const batchId = start.payload.uploadBatchId;
+        const result = events.find((event) => ['inventory_upload_success', 'inventory_upload_failed'].includes(event.eventName) && event.payload.uploadBatchId === batchId);
+        const marked = events.find((event) => ['inventory_upload_mark_uploaded_success', 'inventory_upload_mark_uploaded_failed'].includes(event.eventName) && event.payload.uploadBatchId === batchId);
+        if (!result) {
+          addDiagnostic(output, 'suspected', 'data', '上传批次没有结果事件', `上传批次 ${batchId} 已开始，但没有成功或失败结果。`, [start], ['inventory_upload_start', 'inventory_upload_success/failed'], ['inventory_upload_success/failed']);
+        } else if (result.eventName === 'inventory_upload_failed') {
+          addDiagnostic(output, 'confirmed', 'data', '初盘上传失败', result.payload.errorMessage || `上传批次 ${batchId} 明确失败。`, [start, result], ['inventory_upload_start', 'inventory_upload_success'], ['inventory_upload_success']);
+        } else if (!marked) {
+          addDiagnostic(output, 'suspected', 'data', '上传成功后缺少本机标记结果', `上传批次 ${batchId} 接口成功，但没有找到本机标记已上传的结果。`, [start, result], ['inventory_upload_start', 'inventory_upload_success', 'inventory_upload_mark_uploaded_success'], ['inventory_upload_mark_uploaded_success']);
+        } else if (marked.eventName === 'inventory_upload_mark_uploaded_failed') {
+          addDiagnostic(output, 'confirmed', 'data', '本机标记已上传失败', marked.payload.errorMessage || `上传批次 ${batchId} 已上传，但本机状态更新失败。`, [start, result, marked], ['inventory_upload_start', 'inventory_upload_success', 'inventory_upload_mark_uploaded_success'], ['inventory_upload_mark_uploaded_success']);
+        } else {
+          addDiagnostic(output, 'normal', 'data', '上传链路完整', `上传批次 ${batchId} 已成功并完成本机状态标记。`, [start, result, marked], ['inventory_upload_start', 'inventory_upload_success', 'inventory_upload_mark_uploaded_success'], []);
+        }
+      });
+    }
+
+    function analyzeMaster(events, output) {
+      events.filter((event) => event.eventName === 'master_file_download_status' && event.payload.status === 'failed').forEach((event) => {
+        addDiagnostic(output, 'confirmed', 'master', '主档下载失败', `${event.payload.master || '主档'}下载状态明确为失败。`, [event], ['master_file_download_status completed'], ['completed']);
+      });
+    }
+
+    function addDiagnostic(output, severity, kind, title, summary, evidence, expected, missing) {
+      const cleanEvidence = evidence.filter(Boolean);
+      const first = cleanEvidence[0] || null;
+      const last = cleanEvidence.at(-1) || first;
+      output.push({
+        id: `diagnostic-${output.length + 1}`,
+        severity, kind, title, summary, expected, missing,
+        evidence: cleanEvidence,
+        startEvent: first,
+        endEvent: last,
+        sessionId: first?.sessionId || 'outside',
+        station: first?.payload.gongweiId || ''
+      });
+    }
+
+    function findNext(events, source, names, maxMs) {
+      return events.find((event) => timeMs(event) >= timeMs(source) && timeMs(event) - timeMs(source) <= maxMs && names.includes(event.eventName));
+    }
+    function elapsed(start, end) { return start && end ? Math.max(0, timeMs(end) - timeMs(start)) : 0; }
+    function timeMs(event) { return event?.time?.getTime?.() || 0; }
+    function severityRank(value) { return { confirmed: 0, suspected: 1, normal: 2 }[value] ?? 3; }
+    function formatDuration(ms) {
+      if (ms < 1000) return `${ms}毫秒`;
+      const seconds = Math.round(ms / 1000);
+      return seconds >= 60 ? `${Math.floor(seconds / 60)}分${seconds % 60}秒` : `${seconds}秒`;
+    }
+    function fmtTime(event) { return event?.timeRaw || '-'; }
+    function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])); }
+    function displayValue(value) {
+      if (Array.isArray(value)) return value.join('、');
+      if (value && typeof value === 'object') return JSON.stringify(value);
+      return String(value);
+    }
+
+    function render() {
+      renderStats();
+      renderFilters();
+      renderSessions();
+      renderDiagnostics();
+      renderTimeline();
+    }
+
+    function renderStats() {
+      const confirmed = state.diagnostics.filter((item) => item.severity === 'confirmed').length;
+      const suspected = state.diagnostics.filter((item) => item.severity === 'suspected').length;
+      const records = state.events.filter((event) => event.eventName === 'inventory_record_enqueued').length;
+      const values = [
+        ['行为事件', state.events.length],
+        ['作业会话', state.sessions.length],
+        ['已确认异常', confirmed],
+        ['疑似异常', suspected],
+        ['入队记录', records],
+        ['忽略 / 解析失败', `${state.ignored} / ${state.parseFailed}`]
+      ];
+      document.getElementById('stats').innerHTML = values.map(([label, value]) => `<div class="panel stat"><div class="label">${label}</div><div class="value">${escapeHtml(value)}</div></div>`).join('');
+    }
+
+    function renderFilters() {
+      fillSelect('kindFilter', [...new Set(state.diagnostics.map((item) => item.kind))], KIND_LABEL, '全部链路');
+      fillSelect('eventTypeFilter', [...new Set(state.events.map((event) => event.type))], TYPE_LABEL, '全部事件');
+      const stations = [...new Set(state.events.map((event) => event.payload.gongweiId).filter(Boolean))];
+      fillSelect('stationFilter', stations, {}, '全部工位');
+    }
+
+    function fillSelect(id, values, labels, allLabel) {
+      const select = document.getElementById(id);
+      const previous = select.value;
+      select.innerHTML = `<option value="all">${allLabel}</option>` + values.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(labels[value] || value)}</option>`).join('');
+      select.value = values.includes(previous) ? previous : 'all';
+    }
+
+    function renderSessions() {
+      const list = document.getElementById('sessionList');
+      const buttons = [`<button class="session-btn ${state.selectedSession === 'all' ? 'active' : ''}" data-session="all">全部会话</button>`];
+      state.sessions.forEach((session, index) => {
+        const station = session.gongwei || session.gongweiId || '未知工位';
+        buttons.push(`<button class="session-btn ${state.selectedSession === session.id ? 'active' : ''}" data-session="${session.id}">会话 ${index + 1} · ${escapeHtml(station)}<br><span class="muted">${escapeHtml(fmtTime(session.events[0]))}</span></button>`);
+      });
+      list.innerHTML = buttons.join('');
+      list.querySelectorAll('[data-session]').forEach((button) => button.addEventListener('click', () => {
+        state.selectedSession = button.dataset.session;
+        state.highlightIds = [];
+        render();
+      }));
+    }
+
+    function filteredDiagnostics() {
+      const severity = document.getElementById('severityFilter').value;
+      const kind = document.getElementById('kindFilter').value;
+      const station = document.getElementById('stationFilter').value;
+      return state.diagnostics.filter((item) => {
+        if (severity !== 'all' && item.severity !== severity) return false;
+        if (kind !== 'all' && item.kind !== kind) return false;
+        if (station !== 'all' && item.station !== station) return false;
+        if (state.selectedSession !== 'all' && item.sessionId !== state.selectedSession) return false;
+        return true;
+      });
+    }
+
+    function renderDiagnostics() {
+      const items = filteredDiagnostics();
+      document.getElementById('diagnosticCount').textContent = `${items.length} 条结论`;
+      const container = document.getElementById('diagnostics');
+      if (!items.length) {
+        container.innerHTML = '<div class="empty">当前筛选条件下没有诊断结论</div>';
+        return;
+      }
+      container.innerHTML = items.map((item) => `
+        <article class="diagnostic ${item.severity}">
+          <div class="diagnostic-head">
+            <div><div class="inline"><span class="badge">${SEVERITY_LABEL[item.severity]}</span><span class="chip">${KIND_LABEL[item.kind]}</span></div><h3 style="margin-top:8px">${escapeHtml(item.title)}</h3></div>
+            <button class="link-btn" data-diagnostic="${item.id}">查看关联事件</button>
+          </div>
+          <p>${escapeHtml(item.summary)}</p>
+          <div class="evidence">
+            <div><strong>时间：</strong>${escapeHtml(fmtTime(item.startEvent))}${item.endEvent && item.endEvent !== item.startEvent ? ` → ${escapeHtml(fmtTime(item.endEvent))}` : ''}</div>
+            <div><strong>实际链路：</strong>${item.evidence.map((event) => escapeHtml(event.eventName)).join(' → ') || '无'}</div>
+            <div><strong>预期链路：</strong>${item.expected.map(escapeHtml).join(' → ')}</div>
+            ${item.missing.length ? `<div><strong>缺失步骤：</strong>${item.missing.map(escapeHtml).join('、')}</div>` : ''}
+          </div>
+        </article>`).join('');
+      container.querySelectorAll('[data-diagnostic]').forEach((button) => button.addEventListener('click', () => {
+        const item = state.diagnostics.find((candidate) => candidate.id === button.dataset.diagnostic);
+        state.highlightIds = item.evidence.map((event) => event.id);
+        if (item.sessionId !== 'outside') state.selectedSession = item.sessionId;
+        renderSessions();
+        renderTimeline();
+        document.getElementById(state.highlightIds[0])?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }));
+    }
+
+    function filteredEvents() {
+      const search = document.getElementById('searchInput').value.trim().toLowerCase();
+      const type = document.getElementById('eventTypeFilter').value;
+      const station = document.getElementById('stationFilter').value;
+      return state.events.filter((event) => {
+        if (type !== 'all' && event.type !== type) return false;
+        if (station !== 'all' && event.payload.gongweiId !== station) return false;
+        if (state.selectedSession !== 'all' && event.sessionId !== state.selectedSession) return false;
+        if (search && !`${event.eventName} ${event.title} ${JSON.stringify(event.payload)}`.toLowerCase().includes(search)) return false;
+        return true;
+      });
+    }
+
+    function renderTimeline() {
+      const events = filteredEvents();
+      document.getElementById('timelineCount').textContent = `${events.length} 条事件`;
+      const container = document.getElementById('timeline');
+      if (!events.length) {
+        container.innerHTML = '<div class="empty">当前筛选条件下没有事件</div>';
+        return;
+      }
+      container.innerHTML = events.map((event) => {
+        const chips = Object.entries(event.payload).slice(0, 9).map(([key, value]) => `<span class="chip">${escapeHtml(key)}：${escapeHtml(displayValue(value))}</span>`).join('');
+        return `<article id="${event.id}" class="event ${state.highlightIds.includes(event.id) ? 'highlight' : ''}">
+          <div class="event-head"><div><h3>${escapeHtml(event.title)}</h3><div class="event-name">${escapeHtml(event.eventName)}</div></div><div class="time">${escapeHtml(fmtTime(event))}</div></div>
+          <div class="chips" style="margin-top:9px">${chips}</div>
+          <details><summary>查看原始 JSON</summary><pre>${escapeHtml(JSON.stringify(event.raw, null, 2))}</pre></details>
+        </article>`;
+      }).join('');
+    }
+
+    function runAnalysis(raw) {
+      const parsed = parseLogs(raw);
+      const sessions = buildSessions(parsed.events);
+      state = { ...state, ...parsed, sessions, diagnostics: analyze(parsed.events, sessions), selectedSession: 'all', highlightIds: [] };
+      render();
+    }
+
+    document.getElementById('parseBtn').addEventListener('click', () => runAnalysis(document.getElementById('rawInput').value));
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      document.getElementById('rawInput').value = '';
+      state = { events: [], ignored: 0, parseFailed: 0, sessions: [], diagnostics: [], selectedSession: 'all', highlightIds: [] };
+      render();
+    });
+    document.getElementById('fileInput').addEventListener('change', async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const raw = await file.text();
+      document.getElementById('rawInput').value = raw;
+      runAnalysis(raw);
+    });
+    ['searchInput', 'severityFilter', 'kindFilter', 'eventTypeFilter', 'stationFilter'].forEach((id) => document.getElementById(id).addEventListener('input', () => {
+      if (id === 'severityFilter' || id === 'kindFilter') renderDiagnostics();
+      else {
+        renderDiagnostics();
+        renderTimeline();
+      }
+    }));
+    render();
+  </script>
+</body>
+</html>
